@@ -67,7 +67,7 @@ local GetKey = function()
     for _, v in next, getgc(true) do
         if typeof(v) == "function" then
             local info = debug.getinfo(v)
-            if info and info.name == "shoot" and info.numparams == 1 and info.source ~= "=[C]" then
+            if info and info.name == "shoot" and info.numparams == 1 then
                 return getupvalue(v, 3)
             end
         end
