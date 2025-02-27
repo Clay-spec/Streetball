@@ -1,0 +1,257 @@
+local Success, Error =
+    pcall(
+    function()
+        getgenv().InputBegan:Disconnect()
+    end
+)
+
+if Success then
+    getgenv().InputBegan = nil
+end
+
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Rep = game:GetService("ReplicatedStorage")
+local UIS = game:GetService("UserInputService")
+
+local Player = game:GetService("Players").LocalPlayer
+local Character = Player.Character
+
+local Event = Rep.Remotes.Shoot
+
+local GameIDS = {
+    [80848401610601] = "BEGINNER",
+    [96094234765464] = "VETERANS",
+    [90925183040547] = "MASTER"
+}
+
+local ShootingData = {
+    [75] = {
+        {Distance = 53, Arc = 58},
+        {Distance = 54, Arc = 56},
+        {Distance = 55, Arc = 52},
+        {Distance = 56, Arc = 48},
+        {Distance = 57, Arc = 46}
+    },
+    [80] = {
+        {Distance = 53, Arc = 58},
+        {Distance = 54, Arc = 56},
+        {Distance = 55, Arc = 52},
+        {Distance = 56, Arc = 48},
+        {Distance = 57, Arc = 45}
+    },
+    [85] = {
+        {Distance = 53, Arc = 58},
+        {Distance = 54, Arc = 56},
+        {Distance = 55, Arc = 52},
+        {Distance = 56, Arc = 48},
+        {Distance = 57, Arc = 45}
+    }
+}
+
+local GameLevel = GameIDS[game.PlaceId]
+
+local HasBall = false
+local IsInFooting = false
+local Tolerance = 1
+
+local Goals = {} do
+    for _, Obj in next, workspace:GetDescendants() do
+        if Obj:IsA("BasePart") and Obj.Name == "Lol" and Obj.Parent.Name == "Rim" then
+            table.insert(Goals, Obj)
+        end
+    end
+end
+
+local GetKey = function()
+    for _, v in next, getgc(true) do
+        if typeof(v) == "function" then
+            local info = debug.getinfo(v)
+            if info and info.name == "shoot" and info.numparams == 1 and info.source ~= "=[C]" then
+                return getupvalue(v, 3)
+            end
+        end
+    end
+end
+
+local GetBasketball = function()
+    return Character:FindFirstChild("Basketball")
+end
+
+local GetPower = function()
+    return Character["E_V"].Power
+end
+
+local GetRoot = function()
+    return Character:WaitForChild("HumanoidRootPart", 1337)
+end
+
+local GetPosition = function()
+    return GetRoot().Position
+end
+
+local GetGoalPosition = function(Goal)
+    return Goal.Position
+end
+
+local GetHumanoid = function()
+    return Character:WaitForChild("Humanoid", 1337)
+end
+
+local GetMovingDirection = function()
+    return GetHumanoid().MoveDirection
+end
+
+local GetHumanoidState = function()
+    return GetHumanoid():GetState()
+end
+
+local GetDistance = function(a, b)
+    if typeof(a) and typeof(b) == "Instance" then
+        return (a.Position - b.Position).Magnitude
+    else
+        return (a - b).Magnitude
+    end
+end
+
+local RoundNumber = function(num)
+    return (num >= 0 and math.floor(num + 0.5)) or math.ceil(num - 0.5)
+end
+
+local GetGoal = function()
+    local Goal, Distance = 9e9, math.huge
+
+    for _, Obj in next, Goals do
+        local Mag = (GetPosition() - Obj.Position).Magnitude
+
+        if Distance > Mag then
+            Goal = Obj
+            Distance = Mag
+        end
+    end
+
+    return Goal
+end
+
+local CheckFooting = function()
+	if HasBall then
+		if Footing then
+			if CoreGui:FindFirstChild("Highlight") then
+			    if CoreGui:FindFirstChild("Highlight").Adornee.Parent == nil then
+			        CoreGui:FindFirstChild("Highlight").Adornee = Player.Character
+			    end
+			    
+				CoreGui:FindFirstChild("Highlight").Enabled = true
+				CoreGui:FindFirstChild("Highlight").FillColor = Color3.fromRGB(0, 255, 0)
+				CoreGui:FindFirstChild("Highlight").OutlineColor = Color3.fromRGB(25, 255, 25)
+			else
+				local Highlight = Instance.new("Highlight")
+				Highlight.Parent = CoreGui
+				Highlight.Adornee = Player.Character
+				Highlight.Enabled = false
+			end
+		elseif not Footing and CoreGui:FindFirstChild("Highlight") then
+			CoreGui:FindFirstChild("Highlight").Enabled = false
+		end
+	elseif not HasBall and CoreGui:FindFirstChild("Highlight") then
+	    CoreGui:FindFirstChild("Highlight").Enabled = false
+	end
+end
+
+local GetArc = function(goalPosition, rootPosition)
+    local Distance = RoundNumber(GetDistance(goalPosition, rootPosition))
+
+    local Power = GetPower()
+    local Data = ShootingData[Power.Value]
+
+    if Power.Value ~= nil and Data ~= nil then
+        for _, info in ipairs(Data) do
+            if Distance == info.Distance then
+                return info.Arc
+            end
+        end
+    end
+end
+    local GetNewVector = function()
+    local Goal = GetGoal()
+    local MoveDirection =
+        Vector3.new(Player.Character.Humanoid.MoveDirection.X * 1.5, 0, Player.Character.Humanoid.MoveDirection.Z * 1.5)
+    local Arc = GetArc(GetGoalPosition(Goal), GetPosition())
+
+    return Goal.Position + Vector3.new(0, Arc, 0) - MoveDirection
+end
+
+local Shoot = function()
+    local Vector = GetNewVector()
+
+    local Basketball = GetBasketball()
+    local Key = GetKey()
+
+    local Unit = (Vector - Player.Character.Head.Position).Unit
+    local SpawnPosition = Player.Character.PrimaryPart.Position + Unit * 3.8
+
+    if SpawnPosition.Y - Player.Character.PrimaryPart.Position.Y < 4 then
+        SpawnPosition = Player.Character.PrimaryPart.Position + Unit * 4
+    end
+
+    if Basketball ~= nil and Key ~= nil and SpawnPosition ~= nil and Vector ~= nil then
+        Event:FireServer(Vector, SpawnPosition, Key)
+    end
+end
+
+local function IsFootingValid(PowerValue, Distance)
+    if ShootingData[PowerValue] then
+        for _, data in ipairs(ShootingData[PowerValue]) do
+            if math.abs(Distance - data.Distance) <= Tolerance then
+                return true
+            end
+        end
+    end
+    return
+end
+
+local HandleRender = function()
+    local Goal = GetGoal()
+    
+    if Player.Character then
+        local PowerValue = GetPower().Value
+        local Distance = GetDistance(GetGoalPosition(Goal), GetPosition())
+
+        Footing = IsFootingValid(PowerValue, Distance)
+    end
+
+    if Player.Character and GetBasketball() then
+        task.wait(0.5)
+        HasBall = true
+    elseif Player.Character and not GetBasketball() then
+        HasBall = false
+    end
+
+    CheckFooting()
+end
+
+getgenv().InputBegan = function(Key, GPE)
+    if not GPE and Key.KeyCode == Enum.KeyCode.X and Player.Character and GetBasketball then
+        if GetHumanoidState() ~= Enum.HumanoidStateType.Freefall then
+            GetHumanoid():ChangeState(Enum.HumanoidStateType.Jumping)
+            task.wait(0.25)
+        end
+
+        Shoot()
+    end
+end
+
+UIS.InputBegan:Connect(getgenv().InputBegan)
+getgenv().HandleRender = RunService.Stepped:Connect(HandleRender)
+
+Player.CharacterAdded:Connect(function(Character)
+    pcall(function()
+	    getgenv().HandleRender:Disconnect()
+	    getgenv().InputBegan = nil
+	    getgenv().HandleRender:Disconnect()
+	    getgenv().InputBegan = nil
+    end)
+
+	UIS.InputBegan:Connect(getgenv().InputBegan)
+    getgenv().HandleRender = RunService.Stepped:Connect(HandleRender)
+end)
